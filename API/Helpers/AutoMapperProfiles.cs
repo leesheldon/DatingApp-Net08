@@ -17,5 +17,6 @@ public class AutoMapperProfiles : Profile
         // If there is no item in Photos, PhotoUrl will be set to Null, instead of throw an exception.
         
         CreateMap<Photo, PhotoDto>();
+        CreateMap<MemberUpdateDto, AppUser>();
     }
 }
