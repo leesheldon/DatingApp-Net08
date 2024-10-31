@@ -1,17 +1,16 @@
-using System.Security.Claims;
-using API.Data;
 using API.DTOs;
 using API.Entities;
+using API.Extensions;
 using API.interfaces;
 using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace API.Controllers;
 
 [Authorize]
-public class UsersController(IUserRepository userRepository, IMapper mapper) : BaseApiController
+public class UsersController(IUserRepository userRepository, IMapper mapper,
+     IPhotoService photoService) : BaseApiController
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<MemberDto>>> GetUsers()
@@ -44,11 +43,7 @@ public class UsersController(IUserRepository userRepository, IMapper mapper) : B
     [HttpPut]
     public async Task<ActionResult> UpdateUser(MemberUpdateDto memberUpdateDto)
     {
-        var username = User.FindFirst(ClaimTypes.NameIdentifier);
-
-        if (username == null) return BadRequest("No username found in token!");
-
-        var user = await userRepository.GetUserByUsernameAsync(username.Value);
+        var user = await userRepository.GetUserByUsernameAsync(User.GetUsername());
 
         if (user == null) return BadRequest("Could not find user!");
 
@@ -57,5 +52,78 @@ public class UsersController(IUserRepository userRepository, IMapper mapper) : B
         if (await userRepository.SaveAllAsync()) return NoContent();
 
         return BadRequest("Failed to update the user!");
+    }
+
+    [HttpPost("add-photo")]
+    public async Task<ActionResult<PhotoDto>> AddPhoto(IFormFile file)
+    {
+        var user = await userRepository.GetUserByUsernameAsync(User.GetUsername());
+
+        if (user == null) return BadRequest("Cannot get user in adding photo!");
+
+        var result = await photoService.AddPhotoAsync(file);
+
+        if (result.Error != null) return BadRequest(result.Error.Message);
+
+        var photo = new Photo
+        {
+            Url = result.SecureUrl.AbsoluteUri,
+            PublicId = result.PublicId
+        };
+
+        user.Photos.Add(photo);
+
+        if (await userRepository.SaveAllAsync()) 
+            return CreatedAtAction(nameof(GetUser), 
+                new {username = user.UserName}, mapper.Map<PhotoDto>(photo));
+
+        return BadRequest("Problem in adding photo in saving to database!");
+    }
+
+    [HttpPut("set-main-photo/{photoId:int}")]
+    public async Task<ActionResult> SetMainPhoto(int photoId)
+    {
+        var user = await userRepository.GetUserByUsernameAsync(User.GetUsername());
+
+        if (user == null) return BadRequest("Could not find user to set main photo!");
+
+        var photo = user.Photos.SingleOrDefault(x => x.Id == photoId);
+
+        if (photo == null) return BadRequest("Could not find photo to set main photo!");
+
+        if (photo.IsMain) return BadRequest("Cannot use this photo as Main photo!");
+
+        var currentMainPhoto = user.Photos.FirstOrDefault(x => x.IsMain);
+        if (currentMainPhoto != null) currentMainPhoto.IsMain = false;
+
+        photo.IsMain = true;
+
+        if (await userRepository.SaveAllAsync()) return NoContent();
+
+        return BadRequest("Problem in setting main photo!");
+    }
+
+    [HttpDelete("delete-photo/{photoId:int}")]
+    public async Task<ActionResult> DeletePhoto(int photoId)
+    {
+        var user = await userRepository.GetUserByUsernameAsync(User.GetUsername());
+
+        if (user == null) return BadRequest("Could not find user to delete photo!");
+
+        var photo = user.Photos.FirstOrDefault(x => x.Id == photoId);
+
+        if (photo == null) return BadRequest("Could not find photo to delete!");
+        if (photo.IsMain) return BadRequest("This main photo cannot be deleted!");
+
+        if (photo.PublicId != null)
+        {
+            var result = await photoService.DeletePhotoAsync(photo.PublicId);
+            if (result.Error != null) return BadRequest(result.Error.Message);
+        }
+
+        user.Photos.Remove(photo);
+        if (await userRepository.SaveAllAsync()) return Ok();
+
+        return BadRequest("Problem in deleting photo!");
     }
 }
