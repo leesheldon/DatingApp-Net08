@@ -1,0 +1,57 @@
+<div class="card">
+    <div class="card-body">
+        @if (messages().length === 0) {
+            <p>No message yet.</p>
+        } @else {
+            <ul class="chat">
+                @for (message of messages(); track message.id) {
+                    <li>
+                        <div>
+                            <span class="chat-img float-end">
+                                <img 
+                                    class="rounded-circle" 
+                                    src="{{message.senderPhotoUrl || '/assets/user.png'}}" 
+                                    alt="Photo of message sender"
+                                >
+                            </span>
+                            <div class="chat-body">
+                                <div class="header">
+                                    <small class="text-muted">
+                                        <span class="fa fa-clock-o">
+                                            {{message.messageSent | timeago}}
+                                        </span>
+                                        @if (!message.dateRead && message.senderUsername != username()) {
+                                            <span class="ms-1" style="color: red;">(unread)</span>
+                                        }
+                                        @if (message.dateRead && message.senderUsername != username()) {
+                                            <span class="ms-1" style="color: greenyellow;">(read {{message.dateRead | timeago}})</span>
+                                        }
+                                    </small>
+                                </div>
+                                <p>{{message.content}}</p>
+                            </div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="card-footer">
+        <form #messageForm="ngForm" (ngSubmit)="sendMessage()">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    required 
+                    name="messageContent" 
+                    [(ngModel)]="messageContent" 
+                    class="form-control input-sm" 
+                    placeholder="Send a private message"
+                >
+                <div class="input-group-append">
+                    <button [disabled]="!messageForm.valid" class="btn btn-primary" type="submit">Send</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
