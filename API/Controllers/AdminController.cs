@@ -1,5 +1,7 @@
+using API.DTOs;
 using API.Entities;
 using API.interfaces;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace API.Controllers;
 
 public class AdminController(UserManager<AppUser> userManager, IUnitOfWork unitOfWork, 
-    IPhotoService photoService) : BaseApiController
+    IPhotoService photoService, IMapper mapper) : BaseApiController
 {
     [Authorize(Policy = "RequireAdminRole")]
     [HttpGet("users-with-roles")]
@@ -103,6 +105,41 @@ public class AdminController(UserManager<AppUser> userManager, IUnitOfWork unitO
         }
 
         await unitOfWork.Complete();
+
+        return Ok();
+    }
+
+    [Authorize(Policy = "RequireAdminRole")]
+    [HttpDelete("delete-user/{username}")]
+    public async Task<ActionResult> DeleteUser(string username)
+    {
+        var user = await userManager.FindByNameAsync(username);
+
+        if (user == null) return BadRequest("Cannot find user to delete!");
+
+        // Remove user roles
+        var userRoles = await userManager.GetRolesAsync(user);
+
+        if (userRoles != null && userRoles.Count > 0)
+        {
+            var result_Remove_Roles = await userManager.RemoveFromRolesAsync(user, userRoles);
+            if (!result_Remove_Roles.Succeeded) return BadRequest("Failed to remove roles for deleting user!");
+        }
+
+        // Remove messages linked to this user
+        var messages = await unitOfWork.MessageRepository.GetMessagesForDeletedUser(username);
+
+        if (messages.Count() > 0)
+        {
+            unitOfWork.MessageRepository.DeleteMessageList(mapper.Map<IEnumerable<Message>>(messages));
+            
+            await unitOfWork.Complete();
+        }
+
+        // Delete user
+        var result = await userManager.DeleteAsync(user);
+
+        if (!result.Succeeded) return BadRequest(result.Errors);
 
         return Ok();
     }

@@ -25,6 +25,11 @@ public class MessageRepository(DataContext context, IMapper mapper) : IMessageRe
         context.Messages.Remove(message);
     }
 
+    public void DeleteMessageList(IEnumerable<Message> messages)
+    {
+        context.Messages.RemoveRange(messages);
+    }
+
     public async Task<Connection?> GetConnection(string connectionId)
     {
         return await context.Connections.FindAsync(connectionId);
@@ -48,6 +53,15 @@ public class MessageRepository(DataContext context, IMapper mapper) : IMessageRe
         return await context.Groups
             .Include(x => x.Connections)
             .FirstOrDefaultAsync(x => x.Name == groupName);
+    }
+
+    public async Task<IEnumerable<MessageDto>> GetMessagesForDeletedUser(string username)
+    {
+        return await context.Messages
+            .Where(x => x.RecipientUsername == username || x.SenderUsername == username)
+            .OrderBy(x => x.MessageSent)
+            .ProjectTo<MessageDto>(mapper.ConfigurationProvider)
+            .ToListAsync();
     }
 
     public async Task<PagedList<MessageDto>> GetMessagesForUser(MessageParams messageParams)

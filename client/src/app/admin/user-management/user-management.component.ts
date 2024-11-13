@@ -3,6 +3,8 @@ import { AdminService } from '../../_services/admin.service';
 import { User } from '../../_models/user';
 import { BsModalRef, BsModalService, ModalOptions } from 'ngx-bootstrap/modal';
 import { RolesModalComponent } from '../../modals/roles-modal/roles-modal.component';
+import { ConfirmService } from '../../_services/confirm.service';
+import { TitleCasePipe } from '@angular/common';
 
 @Component({
   selector: 'app-user-management',
@@ -14,6 +16,8 @@ import { RolesModalComponent } from '../../modals/roles-modal/roles-modal.compon
 export class UserManagementComponent implements OnInit {
   private adminService = inject(AdminService);
   private modalService = inject(BsModalService);
+  private confirmService = inject(ConfirmService);
+  private titleCasePipe = new TitleCasePipe();
   users: User[] = [];
   bsModalRef: BsModalRef<RolesModalComponent> = new BsModalRef<RolesModalComponent>();
 
@@ -51,5 +55,27 @@ export class UserManagementComponent implements OnInit {
     this.adminService.getUserWithRoles().subscribe({
       next: users => this.users = users
     });
+  }
+
+  deleteUser(username: string) {
+    this.confirmService.confirm('Confirmation', 
+      'Are you sure you want to delete user - ' + this.titleCasePipe.transform(username) + '?')?.subscribe({
+        next: result => {
+          if (result === true) {
+            // Delete user
+            this.adminService.deleteUser(username).subscribe({
+              next: () => {
+                 this.users = this.users.filter(x => x.username !== username)
+              }
+            });
+          }
+        } 
+      });
+
+        
+      
+      
+    
+    
   }
 }

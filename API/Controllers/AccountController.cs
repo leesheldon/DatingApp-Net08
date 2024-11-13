@@ -23,7 +23,13 @@ public class AccountController(UserManager<AppUser> userManager,
 
         newUser.UserName = registerDto.Username.Trim().ToLower();
         
+        // Add new user
         var result = await userManager.CreateAsync(newUser, registerDto.Password);
+
+        if (!result.Succeeded) return BadRequest(result.Errors);
+
+        // Add Member role for new user
+        result = await userManager.AddToRoleAsync(newUser, "Member");
 
         if (!result.Succeeded) return BadRequest(result.Errors);
 
